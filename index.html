@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACE兵工廠分配</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border: #334155;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --badge-bg: #334155;
+            --commander: #8b5cf6;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 1000px; }
+        header { text-align: center; margin-bottom: 24px; }
+        header h1 { margin: 0 0 8px 0; font-size: 1.8rem; color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.3); }
+        header p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 12px; background-color: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted); font-size: 1rem; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { background-color: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+
+        .card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .card-header h2 { margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; color: #f8fafc; }
+
+        .btn { background-color: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; }
+        .btn:hover { background-color: var(--accent-hover); }
+        .btn.success { background-color: var(--success); }
+
+        .building-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+        .building-item { background-color: rgba(15,23,42,0.6); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+        .building-item.unassigned-card { border-color: var(--warning); background-color: rgba(245, 158, 11, 0.05); grid-column: 1 / -1; }
+
+        .building-name { font-weight: bold; color: #93c5fd; margin-bottom: 10px; display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border); padding-bottom: 6px; font-size: 1.05rem; }
+        .building-name.unassigned-title { color: #fcd34d; border-bottom-color: rgba(245, 158, 11, 0.3); }
+
+        .member-chips { display: flex; flex-direction: column; gap: 6px; }
+        .member-chip { display: flex; justify-content: space-between; align-items: center; background-color: var(--badge-bg); padding: 6px 10px; border-radius: 6px; font-size: 0.9rem; border: 1px solid rgba(255,255,255,0.05); }
+        .member-name { font-weight: 500; color: #f8fafc; }
+        .member-power { font-family: monospace; color: #38bdf8; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+
+        .commander-notice { color: #c4b5fd; font-style: italic; text-align: center; padding: 10px; background: rgba(139, 92, 246, 0.1); border-radius: 6px; border: 1px dashed rgba(139, 92, 246, 0.3); font-size: 0.95rem; }
+
+        textarea { width: 100%; height: 180px; background-color: #0f172a; color: var(--text-color); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; resize: vertical; box-sizing: border-box; }
+        .meta-info { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; display: flex; gap: 15px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>⚔️ ACE兵工廠分配</h1>
+        <p>設施人員配置與戰力對齊看板</p>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchLegion('legion1')">🛡️ 軍團一 (Legion 1)</button>
+        <button class="tab-btn tab-btn-2" onclick="switchLegion('legion2')">⚔️ 軍團二 (Legion 2)</button>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>📋 分配名單 (可直接複製)</h2>
+            <button class="btn" id="copyBtn" onclick="copyList()">一鍵複製名單</button>
+        </div>
+        <div class="meta-info">
+            <span>已分配人數：<span id="totalMembers">0</span> 人</span>
+            <span>尚未分配：<span id="unassignedCount">0</span> 人</span>
+        </div>
+        <textarea id="outputList" readonly></textarea>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>⚡ 設施人員配置看板</h2></div>
+        <div class="building-grid" id="buildingGrid"></div>
+    </div>
+</div>
+
+<script>
+    const unassignedPool = [
+        "Highball 5403", "小批 5205", "葫蘆娃 5187", "房東 4745",
+        "BenLdn 4486", "Autum 4346", "Lkc 4230", "拿鐵 4180",
+        "New new 4072", "五二零 4052", "EDM 3832"
+    ];
+
+    const rawData = {
+        legion1: [
+            "熊爺爺 12881", "Oldman 8133", "Gyu 8393", "Tatamee 7913", "渡菇 7622",
+            "DM 7563", "DIDU 7492", "MC 6408", "珠珠 6863", "鹹魚 5214",
+            "灰太狼 5329", "黑手 5242", "吉的 5196", "艾林 4958", "Boy 4907",
+            "雨太陽 4836", "YOUG 4670", "白咕 4727", "笑口常開 4720", "Xavi 4669",
+            "喜羊羊 4663", "黑菇 3998", "Xenia 3324"
+        ],
+        legion2: [
+            "Nittako 6667", "JCG 6247", "Lonely 5722", "湯馬士 5404", "Johnson 5322",
+            "Reaper 5293", "牛排 5290", "魔影 5114", "小塵埃 5112", "Nini 4972",
+            "Alyssa 5001", "Casey 4827", "Haha 4825", "Pyp 4755", "Duke 4620",
+            "Lin 4505", "雪星 4362", "Freezee 4353", "東西 4213", "布偶貓 4211",
+            "白黑貓 3999", "Katy 3968", "Hikari 3758", "Hao 3140"
+        ]
+    };
+
+    let currentLegion = 'legion1';
+
+    function switchLegion(legionKey) {
+        currentLegion = legionKey;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(legionKey === 'legion1' ? '.tab-btn' : '.tab-btn-2').classList.add('active');
+        renderData();
+    }
+
+    function parseMember(str) {
+        const lastSpace = str.lastIndexOf(' ');
+        if (lastSpace === -1) return { name: str, power: 0, raw: str };
+        return {
+            name: str.substring(0, lastSpace),
+            power: parseInt(str.substring(lastSpace + 1), 10) || 0,
+            raw: str
+        };
+    }
+
+    function shuffle(array) {
+        let currentIndex = array.length, randomIndex;
+        while (currentIndex != 0) {
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        }
+        return array;
+    }
+
+    function renderData() {
+        const members = rawData[currentLegion].map(parseMember);
+
+        members.sort((a, b) => b.power - a.power);
+
+        // 1. 前 6 名隊長
+        const top6Captains = members.slice(0, 6);
+        const captainRawSet = new Set(top6Captains.map(c => c.raw));
+
+        // 2. 游擊小隊：Gyu + 第 7、8 名
+        const gyuObj = members.find(m => m.name.toUpperCase() === 'GYU');
+        const rank7 = members[6];
+        const rank8 = members[7];
+
+        const guerrillaMembers = [];
+        if (gyuObj) guerrillaMembers.push(gyuObj.raw);
+        if (rank7) guerrillaMembers.push(rank7.raw);
+        if (rank8) guerrillaMembers.push(rank8.raw);
+
+        // 3. 建築物分配池（扣除隊長）
+        const poolForBuildings = members.filter(m => !captainRawSet.has(m.raw));
+
+        const b1Extra = poolForBuildings.slice(0, 3);
+        const b2Extra = poolForBuildings.slice(3, 6);
+        const usedExtraSet = new Set([...b1Extra, ...b2Extra].map(m => m.raw));
+
+        const remainingForRepair = poolForBuildings.filter(m => !usedExtraSet.has(m.raw));
+        const repairShops = [[], [], [], []];
+        remainingForRepair.forEach((m, idx) => {
+            repairShops[idx % 4].push(m.raw);
+        });
+
+        // 4. 採集小隊：隨機 8 個人，但「不可包含」6個建築物隊長
+        const nonCaptainPool = members.filter(m => !captainRawSet.has(m.raw));
+        let gatheringPoolCopy = [...nonCaptainPool];
+        shuffle(gatheringPoolCopy);
+        const gatheringMembersRaw = gatheringPoolCopy.slice(0, 8).map(m => m.raw);
+
+        // 5. 組裝 10 個設施
+        const buildings = [
+            { name: "🎯 1號武器試驗場", members: [top6Captains[0].raw, ...b1Extra.map(m => m.raw)] },
+            { name: "🎯 2號武器試驗場", members: [top6Captains[1].raw, ...b2Extra.map(m => m.raw)] },
+            { name: "🔧 1號武器維修廠", members: [top6Captains[2].raw, ...repairShops[0]] },
+            { name: "🔧 2號武器維修廠", members: [top6Captains[3].raw, ...repairShops[1]] },
+            { name: "🔧 3號武器維修廠", members: [top6Captains[4].raw, ...repairShops[2]] },
+            { name: "🔧 4號武器維修廠", members: [top6Captains[5].raw, ...repairShops[3]] },
+            { name: "📡 中繼站", type: "commander" },
+            { name: "🔥 蒸汽鍋爐", type: "commander" },
+            { name: "🏃 游擊小隊", members: guerrillaMembers },
+            { name: "⛏️ 採集小隊", members: gatheringMembersRaw }
+        ];
+
+        const grid = document.getElementById('buildingGrid');
+        grid.innerHTML = '';
+
+        let totalCount = rawData[currentLegion].length;
+        let textOutput = `【 ACE兵工廠分配 - ${currentLegion === 'legion1' ? '軍團一 (Legion 1)' : '軍團二 (Legion 2)'} 】\n`;
+
+        buildings.forEach(b => {
+            const item = document.createElement('div');
+            item.className = 'building-item';
+
+            if (b.type === 'commander') {
+                item.innerHTML = `
+                    <div class="building-name">${b.name}</div>
+                    <div class="commander-notice">✨ 由指揮官安排</div>
+                `;
+                textOutput += `\n${b.name}：由指揮官安排\n`;
+            } else {
+                let chipsHtml = '';
+                b.members.forEach(mStr => {
+                    const m = parseMember(mStr);
+                    chipsHtml += `
+                        <div class="member-chip">
+                            <span class="member-name">${m.name}</span>
+                            <span class="member-power">⚔️ ${m.power}</span>
+                        </div>
+                    `;
+                });
+                item.innerHTML = `
+                    <div class="building-name">${b.name} <span>(${b.members.length}人)</span></div>
+                    <div class="member-chips">${chipsHtml}</div>
+                `;
+                textOutput += `\n${b.name}：\n` + b.members.map(m => `• ${m}`).join('\n') + `\n`;
+            }
+            grid.appendChild(item);
+        });
+
+        let unassignedChipsHtml = '';
+        unassignedPool.forEach(mStr => {
+            const m = parseMember(mStr);
+            unassignedChipsHtml += `
+                <div class="member-chip">
+                    <span class="member-name">${m.name}</span>
+                    <span class="member-power">⚔️ ${m.power}</span>
+                </div>
+            `;
+        });
+
+        const unassignedCard = document.createElement('div');
+        unassignedCard.className = 'building-item unassigned-card';
+        unassignedCard.innerHTML = `
+            <div class="building-name unassigned-title">⚠️ 尚未分配 / 候補人員 <span>(${unassignedPool.length}人)</span></div>
+            <div class="member-chips">${unassignedChipsHtml}</div>
+        `;
+        grid.appendChild(unassignedCard);
+
+        textOutput += `\n⚠️ 尚未分配 / 候補人員：\n` + unassignedPool.map(m => `• ${m}`).join('\n');
+
+        document.getElementById('totalMembers').textContent = totalCount;
+        document.getElementById('unassignedCount').textContent = unassignedPool.length;
+        document.getElementById('outputList').value = textOutput.trim();
+    }
+
+    function copyList() {
+        const textarea = document.getElementById('outputList');
+        textarea.select();
+        document.execCommand('copy');
+
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '已複製！';
+        btn.classList.add('success');
+        setTimeout(() => {
+            btn.textContent = '一鍵複製名單';
+            btn.classList.remove('success');
+        }, 2000);
+    }
+
+    renderData();
+</script>
+</body>
+</html>
+
+
